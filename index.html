@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sirkula — Live Waste Tracking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+</head>
+<body>
+<header>
+  <a class="logo" href="#">↻ <b>SIRKULA</b></a>
+  <span class="live-pill"><i></i> LIVE WASTE TRACKING</span>
+  <button id="startBtn" class="btn primary">AKTIFKAN KAMERA</button>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div>
+    <div class="eyebrow">SMART WASTE VISION / 02</div>
+    <h1>See it.<br><em>Sort it.</em><br>Track it.</h1>
+    <p>Deteksi beberapa objek sekaligus, pertahankan Tracking ID agar objek yang sama tidak dihitung berulang, lalu akumulasikan jenis sampah secara otomatis.</p>
+    <div class="note">Model demo memakai COCO-SSD untuk object detection umum. Kelas objek kemudian dipetakan ke kategori sampah.</div>
+  </div>
+  <div class="hero-stats">
+    <div><span id="fps">0</span><small>FPS</small></div>
+    <div><span id="trackedCount">0</span><small>TRACKED</small></div>
+    <div><span id="sessionTotal">0</span><small>CONFIRMED</small></div>
+  </div>
+</section>
+
+<section class="workspace" id="scanner">
+  <div class="camera-card">
+    <div class="camera-head">
+      <div><span id="statusDot" class="dot"></span><span id="statusText">CAMERA OFFLINE</span></div>
+      <button id="resetBtn" class="mini">RESET SESSION</button>
+    </div>
+    <div class="viewport">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div id="cameraHint"><strong>Camera ready.</strong><br>Tekan “Aktifkan Kamera” lalu arahkan ke objek.</div>
+      <div class="scanline"></div>
+    </div>
+    <div class="camera-foot">
+      <span>Tracking persistence: <b>8 frames</b></span>
+      <span>Duplicate guard: <b>ON</b></span>
+      <span>Confidence: <b id="confText">55%</b></span>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="panel">
+      <div class="panel-title"><span>LIVE OBJECTS</span><b id="objectCount">0</b></div>
+      <div id="objects" class="object-list">
+        <div class="empty">Belum ada objek terdeteksi.</div>
+      </div>
+    </div>
+
+    <div class="panel accumulator" id="accumulator">
+      <div class="panel-title"><span>SESSION ACCUMULATOR</span><b id="kgTotal">0.00 kg</b></div>
+      <div class="material"><span class="icon plastic">♻</span><div><b>Plastik</b><small id="plasticCount">0 item · 0.00 kg</small></div><strong id="plasticBar">0</strong></div>
+      <div class="material"><span class="icon paper">▤</span><div><b>Kertas</b><small id="paperCount">0 item · 0.00 kg</small></div><strong id="paperBar">0</strong></div>
+      <div class="material"><span class="icon glass">◇</span><div><b>Kaca</b><small id="glassCount">0 item · 0.00 kg</small></div><strong id="glassBar">0</strong></div>
+      <div class="material"><span class="icon metal">▣</span><div><b>Logam</b><small id="metalCount">0 item · 0.00 kg</small></div><strong id="metalBar">0</strong></div>
+      <div class="material"><span class="icon organic">✿</span><div><b>Organik</b><small id="organicCount">0 item · 0.00 kg</small></div><strong id="organicBar">0</strong></div>
+      <div class="material"><span class="icon b3">⚠</span><div><b>B3 / E-waste</b><small id="b3Count">0 item · 0.00 kg</small></div><strong id="b3Bar">0</strong></div>
+    </div>
+
+    <div class="panel impact" id="impact">
+      <div class="panel-title"><span>SESSION IMPACT</span><b>LIVE</b></div>
+      <div class="impact-grid">
+        <div><small>WASTE DIVERTED*</small><b id="impactKg">0.00 kg</b></div>
+        <div><small>XP EARNED</small><b id="xp">0</b></div>
+        <div><small>OBJECTS</small><b id="impactObjects">0</b></div>
+        <div><small>IMPACT SCORE</small><b id="impactScore">0</b></div>
+      </div>
+      <p>*Estimasi berat memakai bobot rata-rata per jenis objek. Bukan hasil timbangan langsung.</p>
+    </div>
+  </aside>
+</section>
+
+<section class="detail">
+  <div>
+    <div class="eyebrow">HOW IT WORKS</div>
+    <h2>Satu objek, satu ID,<br><em>satu kali hitung.</em></h2>
+  </div>
+  <div class="flow">
+    <article><span>01</span><b>DETECT</b><p>Model mencari objek pada setiap frame.</p></article>
+    <article><span>02</span><b>TRACK</b><p>Bounding box dicocokkan dengan ID frame sebelumnya.</p></article>
+    <article><span>03</span><b>CLASSIFY</b><p>Objek dipetakan ke material sampah.</p></article>
+    <article><span>04</span><b>ACCUMULATE</b><p>ID baru dikonfirmasi dan hanya dihitung sekali.</p></article>
+  </div>
+</section>
+
+<section class="session-card">
+  <div>
+    <div class="eyebrow">FINALIZE SESSION</div>
+    <h2>Sudah selesai scanning?</h2>
+    <p>Simpan ringkasan sesi dan kirim datanya ke dashboard Sirkula.</p>
+  </div>
+  <button id="saveBtn" class="btn primary">SIMPAN SESSION →</button>
+</section>
+</main>
+
+<nav class="mobile-nav" aria-label="Navigasi mobile">
+  <a href="#top" class="nav-item active"><span>⌂</span><small>Home</small></a>
+  <a href="#scanner" class="nav-item"><span>⌾</span><small>Scanner</small></a>
+  <a href="#accumulator" class="nav-item"><span>▤</span><small>Waste</small></a>
+  <a href="#impact" class="nav-item"><span>◈</span><small>Impact</small></a>
+</nav>
+
+<div id="toast"></div>
+<script src="js/app.js"></script>
+</body>
+</html>
